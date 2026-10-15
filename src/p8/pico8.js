@@ -70,6 +70,7 @@ export class Pico8 {
     this.cartdataDirty = false;
     this.frames = 0;
     this.fps = 30;
+    this.sub = 1;
     this.error = null;
     this.rng = [0x12345678 ^ Date.now() | 0, 0x9abcdef0];
     this.menuItems = [];
@@ -129,9 +130,17 @@ export class Pico8 {
 
   // ---------------------------------------------------------------- frame
 
+  // Advance 1/60 second: a game frame every time at 60fps, every other time at 30,
+  // and sound every time (so it arrives in even, small pieces).
+  step() {
+    this.sub = (this.sub + 1) & 1;
+    if (this.fps === 60 || this.sub === 0) this.runFrame();
+    this.audio.frame(60);
+  }
+
   // Run one PICO-8 frame (1/30 or 1/60 second, per this.fps).
   runFrame() {
-    if (this.phase === 'halted') { this.audio.frame(this.fps); return; }
+    if (this.phase === 'halted') return;
     this.updateButtons();
     try {
       if (this.phase === 'main') {
@@ -156,7 +165,6 @@ export class Pico8 {
     }
     this.frames++;
     this.present();
-    this.audio.frame(this.fps);
     this.saveCartdata();
   }
 

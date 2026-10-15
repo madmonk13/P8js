@@ -18,6 +18,7 @@ const TOUCH_DIR = [[0x10, BTN.up], [0x20, BTN.down], [0x40, BTN.left], [0x80, BT
 export class Input {
   constructor() {
     this.keys = new Set();
+    this.flipXO = false;      // touch: O on top and X below
     this.onActivity = null;   // called on keyboard or gamepad input
     // Extra sources (touch controls): objects with dir() -> direction bits
     // (0x10 up, 0x20 down, 0x40 left, 0x80 right), a() (top: X) and b() (bottom: O) -> bool.
@@ -44,8 +45,8 @@ export class Input {
     for (const src of this.sources) {
       const d = src.dir();
       for (const [t, g] of TOUCH_DIR) if (d & t) bits |= g;
-      if (src.a()) bits |= BTN.x;
-      if (src.b()) bits |= BTN.o;
+      if (src.a()) bits |= this.flipXO ? BTN.o : BTN.x;
+      if (src.b()) bits |= this.flipXO ? BTN.x : BTN.o;
     }
 
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];

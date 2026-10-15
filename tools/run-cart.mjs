@@ -16,7 +16,7 @@ p8.load(cart);
 const t0 = performance.now();
 for (let i = 0; i < frames; i++) {
   p8.buttons = args.includes('--press') && (i % 20) < 10 ? 0x10 : 0;
-  p8.runFrame();
+  p8.step(); if (p8.fps === 30) p8.step();
   if (p8.phase === 'halted' && p8.error) break;
 }
 const ms = (performance.now() - t0) / frames;

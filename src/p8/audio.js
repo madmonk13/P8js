@@ -10,27 +10,43 @@
 
 export const SAMPLE_RATE = 22050;
 const TICK = 183;                       // samples per speed unit (1/120 s)
-const GAIN = 0.22;
+const GAIN = 2.2;
+const HIGH_PASS = Math.exp(-2 * Math.PI * 40 / 22050);
 
 const frac = (x) => x - Math.floor(x);
-const tri = (p) => Math.abs(frac(p) * 4 - 2) - 1;
 
-function wave(w, p, ch) {
-  p = frac(p);
+// The waveforms over one period (t in 0..1), at their relative loudness: the
+// smooth waves (triangle, saws, organ) a little above the square waves.
+// `u` is the unwrapped phase, for the phaser's slow sweep.
+function wave(w, t, u, ch) {
   switch (w) {
-    case 0: return tri(p);
-    case 1: return p < 0.875 ? p / 0.4375 - 1 : (1 - p) / 0.0625 - 1;     // tilted saw
-    case 2: return p * 2 - 1;                                               // saw
-    case 3: return p < 0.5 ? 0.75 : -0.75;                                  // square
-    case 4: return p < 0.3125 ? 0.75 : -0.75;                               // pulse
-    case 5: return (tri(p) * 0.6 + tri(p * 2) * 0.4);                       // organ
-    case 6: return ch.noise;                                                // noise
-    case 7: return (tri(p) + tri(p * 1.0198)) * 0.5;                        // phaser
+    case 0: return 0.36 * (Math.abs(4 * t - 2) - 1);                          // triangle
+    case 1: return 0.36 * (t < 0.9 ? 2 * t / 0.9 - 1 : 2 * (1 - t) / 0.1 - 1);  // tilted saw
+    case 2: return 0.5 * (t < 0.5 ? t : t - 1);                             // saw
+    case 3: return t < 0.5 ? 0.25 : -0.25;                                    // square
+    case 4: return t < 1 / 3 ? 0.25 : -0.25;                                  // pulse
+    case 5: return (t < 0.5 ? 3 - Math.abs(24 * t - 6) : 1 - Math.abs(16 * t - 12)) / 9;   // organ
+    case 6: return ch.noise;                                                  // noise
+    case 7: {                                                                 // phaser
+      // Two triangle waves drifting in and out of phase at 1/128 of the pitch.
+      const k = Math.abs(2 * frac(u / 128) - 1);
+      const v = frac(t + 0.5 * k);
+      return (Math.abs(4 * v - 2) - Math.abs(8 * t - 4)) / 6;
+    }
   }
   return 0;
 }
 
 const pitchFreq = (pitch) => 440 * 2 ** ((pitch - 33) / 12);
+
+// Sound effect byte 64: bit 0 the editor mode, then noiz (2), buzz (4), and three
+// filters with levels 0-2 packed in base 3: detune (x8), reverb (x24), dampen (x72).
+function decodeFilters(b) {
+  return {
+    noiz: (b >> 1) & 1, buzz: (b >> 2) & 1,
+    detune: Math.floor(b / 8) % 3, reverb: Math.floor(b / 24) % 3, dampen: Math.floor(b / 72) % 3,
+  };
+}
 
 // One sound effect playing (on a channel, or as a custom instrument under a note).
 class Voice {
@@ -55,7 +71,11 @@ export class P8Audio {
     this.buffer = new Float32Array(1 << 15);
     this.readPos = 0;
     this.writePos = 0;
-    this.ch = Array.from({ length: 4 }, () => ({ v: new Voice(), music: false, noise: 0, noiseT: 0, lp: 0 }));
+    this.ch = Array.from({ length: 4 }, () => ({
+      v: new Voice(), music: false, noise: 0, noise1: 0, noise2: 0, noiseF: -1, noiseK: 1, noiseG: 1,
+      filterByte: -1, filters: decodeFilters(0), damp: 0, damp2: 0,
+      echo: new Float32Array(1024), echoPos: 0,
+    }));
     this.music = { pattern: -1, start: -1, t: 0, len: 0, mask: 15, fade: 0, fadeStep: 0, vol: 1 };
     this.dcIn = 0; this.dcOut = 0;
     this.carry = 0;
@@ -184,28 +204,37 @@ export class P8Audio {
       if (v.note >= Math.min(32, stop)) { v.reset(); return 0; }
     }
     const w = mem[a + v.note * 2] | (mem[a + v.note * 2 + 1] << 8);
-    let pitch = w & 63, vol = (w >> 9) & 7;
+    const pitch = w & 63, vol = (w >> 9) & 7;
     const wf = (w >> 6) & 7, fx = (w >> 12) & 7, custom = (w >> 15) & 1;
     const pos = v.t / noteLen;
     let vf = vol / 7;
-    let p = pitch;
+    let f = pitchFreq(pitch + pitchOfs);
     switch (fx) {
-      case 1: p = v.prevPitch + (pitch - v.prevPitch) * pos; vf = (v.prevVol + (vol - v.prevVol) * pos) / 7; break;
-      case 2: p = pitch + tri(v.elapsed / SAMPLE_RATE * 7.5) * 0.25; break;
-      case 3: p = pitch * (1 - pos); break;
-      case 4: vf *= pos; break;
-      case 5: vf *= 1 - pos; break;
-      case 6: case 7: {
+      case 1: {                                   // slide: from the last note's frequency and volume
+        const f0 = pitchFreq(v.prevPitch + pitchOfs);
+        f = f0 + (f - f0) * pos;
+        vf = (v.prevVol + (vol - v.prevVol) * pos) / 7;
+        break;
+      }
+      case 2: {                                   // vibrato: a quarter semitone either way at 7.5 Hz
+        const k = Math.abs(frac(7.5 * v.elapsed / SAMPLE_RATE) - 0.5) - 0.25;
+        f *= 1 + (2 ** (1 / 12) - 1) * k;
+        break;
+      }
+      case 3: f *= 1 - pos; break;                // drop
+      case 4: vf *= pos; break;                   // fade in
+      case 5: vf *= 1 - pos; break;               // fade out
+      case 6: case 7: {                           // arpeggio over the note's group of four
         const step = (fx === 6 ? (speed <= 8 ? 2 : 4) : (speed <= 8 ? 4 : 8)) * TICK;
         const base = v.note & ~3, k = Math.floor(v.elapsed / step) & 3;
         const wa = mem[a + (base + k) * 2] | (mem[a + (base + k) * 2 + 1] << 8);
-        p = wa & 63;
+        f = pitchFreq((wa & 63) + pitchOfs);
         break;
       }
     }
     v.t++;
     v.elapsed++;
-    if (!vol && fx !== 1) { if (v.inst) v.inst = null; return 0; }
+    if (!vf) { if (v.inst && fx !== 1) v.inst = null; return 0; }
     let s;
     if (custom) {
       // The note plays sound effect 0-7 as its instrument, transposed (C-2 = as written).
@@ -215,20 +244,67 @@ export class P8Audio {
         if (!keep) this.start(v.inst, wf);
         v.instNote = v.note;
       }
-      s = this.voiceSample(v.inst, ch, p - 24 + pitchOfs, 1);
-      if (v.inst.sfx < 0) { this.start(v.inst, wf); }               // instruments loop for the note's length
+      const semis = f > 1 ? 12 * Math.log2(f / 440) + 33 : -60;      // the note's (effected) pitch
+      s = this.voiceSample(v.inst, ch, semis - 24, 1);
     } else {
-      const f = pitchFreq(p + pitchOfs);
+      const flags = ch.filters;
       v.phase += f / SAMPLE_RATE;
-      if (v.phase > 1e6) v.phase = frac(v.phase);
+      if (v.phase >= 128 * 4096) v.phase -= 128 * 4096;              // keeps the phaser's 1/128 cycle whole
+      const t = frac(v.phase);
       if (wf === 6) {
-        // Noise: a new random level at a rate set by the pitch.
-        ch.noiseT += f * 8 / SAMPLE_RATE;
-        if (ch.noiseT >= 1) { ch.noiseT -= Math.floor(ch.noiseT); ch.noise = Math.random() * 1.6 - 0.8; }
+        // Noise: white noise through a low-pass that opens up with the pitch (the noiz filter: pure white).
+        const white = Math.random() * 2 - 1;
+        {
+          // The pitch sets a two-stage low-pass: low notes rumble (explosions), high
+          // ones hiss. The gain keeps the level about even as the filter closes. The
+          // noiz filter's whiter noise opens the filter further, but still follows the pitch.
+          const open = flags.noiz ? 10 : 4;
+          if (ch.noiseF !== f * open) {
+            ch.noiseF = f * open;
+            const fc = Math.min(10000, Math.max(20, f * open));
+            const k = 1 - Math.exp(-2 * Math.PI * fc / SAMPLE_RATE), r = (1 - k) ** 2;
+            ch.noiseK = k;
+            ch.noiseG = Math.min(12, 0.22 / Math.sqrt(k ** 4 * (1 + r) / (1 - r) ** 3 / 3) * Math.sqrt(1 / 3));
+          }
+          ch.noise1 += (white - ch.noise1) * ch.noiseK;
+          ch.noise2 += (ch.noise1 - ch.noise2) * ch.noiseK;
+          ch.noise = ch.noise2 * ch.noiseG;
+        }
       }
-      s = wave(wf, v.phase, ch);
+      s = wave(wf, t, v.phase, ch);
+      if (flags.detune) {
+        // A second voice, slightly (or, at level 2, an octave and a bit) off.
+        v.phase2 = (v.phase2 || 0) + f * (flags.detune === 1 ? 1.006 : 2.01) / SAMPLE_RATE;
+        if (v.phase2 >= 128 * 4096) v.phase2 -= 128 * 4096;
+        s = (s + wave(wf, frac(v.phase2), v.phase2, ch) * (flags.detune === 1 ? 1 : 0.5)) * 0.6;
+      }
+      // Buzz: a sawtooth edge mixed in.
+      if (flags.buzz && wf !== 6) s = s * 0.85 + 0.653 * (t < 0.5 ? t : t - 1) * 0.2;
     }
     return s * vf * volScale;
+  }
+
+  // A channel's sound effect filters: dampen (a low-pass) and reverb (an echo).
+  effects(ch, s) {
+    const fl = ch.filters;
+    if (fl.dampen) {
+      const k = fl.dampen === 1 ? 0.3 : 0.15;     // two-stage low-pass at about 1.3 kHz / 570 Hz
+      ch.damp += (s - ch.damp) * k;
+      ch.damp2 += (ch.damp - ch.damp2) * k;
+      s = ch.damp2;
+    }
+    const e = ch.echo, mask = e.length - 1;
+    if (fl.reverb) {
+      // Echoes 2 or 4 ticks back (about 17 or 33 ms).
+      const d = fl.reverb === 1 ? 366 : 732;
+      if (e.length < 1024) ch.echo = new Float32Array(1024);
+      const out = s + e[(ch.echoPos - d) & mask] * 0.45;
+      e[ch.echoPos] = out;
+      ch.echoPos = (ch.echoPos + 1) & mask;
+      return out;
+    }
+    if (e[ch.echoPos]) e.fill(0);
+    return s;
   }
 
   // Generate `n` samples into the ring buffer.
@@ -239,11 +315,12 @@ export class P8Audio {
       for (let c = 0; c < 4; c++) {
         const ch = this.ch[c];
         if (ch.v.sfx < 0) continue;
+        const a = 0x3200 + ch.v.sfx * 68;
+        if (ch.filterByte !== this.mem[a + 64]) ch.filters = decodeFilters(ch.filterByte = this.mem[a + 64]);
         let s = this.voiceSample(ch.v, ch);
         if (ch.music) s *= m.vol;
-        // A light low-pass takes the edge off the square waves.
-        ch.lp += (s - ch.lp) * 0.6;
-        mix += ch.lp;
+        s = this.effects(ch, s);
+        mix += s;
       }
       if (m.pattern >= 0) {
         if (m.fadeStep) {
@@ -254,9 +331,12 @@ export class P8Audio {
         if (m.pattern >= 0 && ++m.t >= m.len) this.endPattern();
       }
       const s = mix * GAIN;
-      const out = s - this.dcIn + 0.995 * this.dcOut;
+      // A gentle high-pass (about 40 Hz) keeps DC and sub-bass rumble out, and leaves kicks their weight.
+      const out = s - this.dcIn + HIGH_PASS * this.dcOut;
       this.dcIn = s; this.dcOut = out;
-      buf[this.writePos] = out;
+      // Four loud channels can pass full scale: round off just the top of the peaks rather than clip.
+      const mag = Math.abs(out);
+      buf[this.writePos] = mag > 0.85 ? Math.sign(out) * (0.85 + 0.15 * Math.tanh((mag - 0.85) / 0.15)) : out;
       this.writePos = (this.writePos + 1) & mask;
       if (this.writePos === this.readPos) this.readPos = (this.readPos + 1) & mask;
     }

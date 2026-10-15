@@ -28,7 +28,7 @@
     <div class="zone fire">
       <div class="box a"><b>X</b><small>Tap</small></div>
       <div class="box b"><b>O</b><small>Tap</small></div>
-      <div class="hint"><b>X · O</b><span>Top half is X, bottom half is O</span></div>
+      <div class="hint"><b id="hintXO">X · O</b><span id="hintXOText">Top half is X, bottom half is O</span></div>
     </div>
   </div>
   <div id="ripples"></div>
@@ -63,6 +63,7 @@
       <section class="sec-controls">
         <h2>Controls</h2>
         <label class="switch"><span>Left-handed<small>X and O on the left, d-pad on the right</small></span><input id="leftHanded" type="checkbox"><i></i></label>
+        <label class="switch"><span>Flip X and O<small>O on top, X below. Remembered for each cart</small></span><input id="flipXO" type="checkbox"><i></i></label>
         <div class="field inline">
           <span>D-pad</span>
           <div class="seg" id="ctrlSeg">

@@ -28,7 +28,8 @@ included.
 | Bottom of the button side | Z, C, N | Bottom / left face button | 🅾️ (O) |
 | Top of the button side | X, V, M | Right / top face button | ❎ (X) |
 
-P pauses. Settings are behind the gear button.
+P pauses. Settings are behind the gear button. **Flip X and O** swaps the two touch buttons;
+it's remembered for each cart.
 
 ## How it works
 
@@ -56,8 +57,8 @@ running state can't be saved, so carts start fresh each time they're opened rath
 ## Not supported (yet)
 
 The pause menu and `menuitem()`, mouse and keyboard (devkit) input, the `\^` print commands beyond
-the basics, `\a` audio in print, screen modes (`0x5f2c`), sound filters (noiz, buzz, detune,
-reverb, dampen), multi-cart `load()`, and the second player.
+the basics, `\a` audio in print, screen modes (`0x5f2c`), multi-cart `load()`, and the second
+player. The sound filters (noiz, buzz, detune, reverb, dampen) are approximations.
 
 ## Offline and install
 

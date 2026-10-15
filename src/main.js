@@ -36,7 +36,11 @@ const settings = { ...DEFAULTS, ...(store.get('mobile') || {}) };
 // Touch hints became off by default (the zone outlines now introduce the controls); turn
 // them off once for settings saved before that.
 if (!settings.hintsOffByDefault) { settings.hints = false; settings.hintsOffByDefault = true; store.set('mobile', settings); }
-const state = { romId: null, menuOpen: false, paused: false, loaded: false };
+const state = { romId: null, menuOpen: false, paused: false, loaded: false, flipXO: false };
+
+// Per-cart preferences (for now, whether X and O swap places), kept with the cart's library id.
+const PREFS = 'cartprefs:';
+function cartPrefs(id) { return (id && store.get(PREFS + id)) || {}; }
 
 // Block page-level zoom/scroll gestures; this is a full-screen app.
 for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) {
@@ -98,6 +102,7 @@ async function loadRom(bytes, name) {
   const res = library.add(name, bytes, label);
   if (!res.stored) toast('Storage is full, so this cart won\'t be saved. Remove some to make room.');
   state.romId = res.id;
+  state.flipXO = !!cartPrefs(res.id).flipXO;
   state.gameName = gameTitle(name);
   showBooting(state.gameName);
   introduceZones();
@@ -112,6 +117,7 @@ function refreshLibrary() {
     onPlay: (entry) => playEntry(entry),
     onRemove: (entry) => {
       library.remove(entry.id);
+      store.remove(PREFS + entry.id);
       refreshLibrary();
     },
   });
@@ -216,6 +222,13 @@ function save() { store.set('mobile', settings); }
 function applyControls() {
   document.body.classList.toggle('lefty', settings.leftHanded);
   touch.leftHanded = settings.leftHanded;
+  input.flipXO = state.flipXO;
+  $('flipXO').checked = state.flipXO;
+  const [top, bottom] = state.flipXO ? ['O', 'X'] : ['X', 'O'];
+  document.querySelector('.box.a b').textContent = top;
+  document.querySelector('.box.b b').textContent = bottom;
+  $('hintXO').textContent = `${top} · ${bottom}`;
+  $('hintXOText').textContent = `Top half is ${top}, bottom half is ${bottom}`;
   touch.eightWay = settings.eightWay;
   touch.haptics = settings.haptics;
   touch.setSize(settings.dpadSize);
@@ -252,6 +265,11 @@ function flashHints(ms) {
   if (ms) hintTimer = setTimeout(() => document.body.classList.remove('show-hints'), ms);
 }
 
+$('flipXO').addEventListener('change', (e) => {
+  state.flipXO = e.target.checked;
+  if (state.romId) store.set(PREFS + state.romId, { ...cartPrefs(state.romId), flipXO: state.flipXO });
+  applyControls(); flashHints(2500);
+});
 $('leftHanded').addEventListener('change', (e) => {
   settings.leftHanded = e.target.checked; applyControls(); layout2D(); save(); flashHints(2500);
 });
@@ -415,11 +433,11 @@ function tick(now) {
   if (running) {
     acc += dt;
     let ran = 0;
-    // 30 or 60 frames a second, as the cart asks (_update or _update60).
-    while (acc >= 1 / p8.fps && ran < 4) {
+    // Steps of 1/60 second; the cart runs at 30 or 60 frames a second within them.
+    while (acc >= 1 / 60 && ran < 4) {
       p8.buttons = input.read();
-      acc -= 1 / p8.fps;
-      p8.runFrame();
+      acc -= 1 / 60;
+      p8.step();
       ran++;
     }
     if (ran === 4) acc = 0;

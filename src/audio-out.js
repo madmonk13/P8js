@@ -14,7 +14,7 @@
 import { SAMPLE_RATE } from './p8/audio.js';
 
 const STALL_MS = 1000;   // no sign of output for this long while running = stalled
-const WORKLET_URL = new URL('./audio-worklet.js', import.meta.url);
+const WORKLET_URL = new URL('./audio-worklet.js?v=3', import.meta.url);   // bump when it changes: browsers cache worklets hard
 
 export class AudioOut {
   constructor(source) {
@@ -57,7 +57,7 @@ export class AudioOut {
       const node = new AudioWorkletNode(ctx, 'sound-output', {
         numberOfInputs: 0, outputChannelCount: [1], processorOptions: { rate: SAMPLE_RATE },
       });
-      node.port.onmessage = () => { this.lastProcess = performance.now(); };
+      node.port.onmessage = (e) => { this.lastProcess = performance.now(); this.starves = e.data; };
       node.connect(this.gain);
       this.node = node;
       this.worklet = true;
