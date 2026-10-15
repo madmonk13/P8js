@@ -5,6 +5,8 @@ desktop, in plain JavaScript with no dependencies. It's a sibling of 6502js (Ata
 (NES), SM83js (Game Boy) and z80js (arcade), and shares their app shell: gesture controls, a saved
 cart library, pause, and an installable web app.
 
+**Play it:** [madmonk13.github.io/P8js](https://madmonk13.github.io/P8js/)
+
 P8js is not PICO-8 and isn't affiliated with Lexaloffle. It's an independent runtime for carts
 made with it: it reads `.p8` and `.p8.png` files and runs their Lua. Its font and sound synthesis
 are its own designs, so carts look and sound close to, not exactly like, the real thing.
