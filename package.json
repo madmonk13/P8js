@@ -1,0 +1,13 @@
+{
+  "name": "p8js",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Touch-first player for PICO-8 carts, for phones and desktop",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/build-sw.mjs && python3 -m http.server 2608",
+    "cart": "node tools/run-cart.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "sw": "node tools/build-sw.mjs"
+  }
+}

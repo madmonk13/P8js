@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+carts/
+out/
+*.p8
+*.p8.png
+.claude/
