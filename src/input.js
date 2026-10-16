@@ -20,6 +20,7 @@ export class Input {
     this.keys = new Set();
     this.flipXO = false;      // touch: O on top and X below
     this.onActivity = null;   // called on keyboard or gamepad input
+    this.padStartHeld = false; // the gamepad's Start resumed the game: not a press for it until let go
     // Extra sources (touch controls): objects with dir() -> direction bits
     // (0x10 up, 0x20 down, 0x40 left, 0x80 right), a() (top: X) and b() (bottom: O) -> bool.
     this.sources = [];
@@ -71,4 +72,17 @@ export class Input {
     if ((bits & (BTN.up | BTN.down)) === (BTN.up | BTN.down)) bits &= ~(BTN.up | BTN.down);
     return bits;
   }
+}
+
+// The controls, as [keys, what they do] rows for the keyboard or gamepad hints
+// (mode 'keys' or 'pad').
+export function controlLegend(mode) {
+  const keys = mode === 'keys';
+  const rows = [
+    [keys ? 'Arrows  or  W A S D' : 'D-pad  ·  left stick', 'D-pad'],
+    [keys ? 'Z, C  or  N' : 'Bottom or left button', 'O'],
+    [keys ? 'X, V  or  M' : 'Right or top button', 'X'],
+  ];
+  if (keys) rows.push(['P', 'Pause']);
+  return rows;
 }

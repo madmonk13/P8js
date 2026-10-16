@@ -31,6 +31,11 @@ included.
 P pauses. Settings are behind the gear button. **Flip X and O** swaps the two touch buttons;
 it's remembered for each cart.
 
+Hints follow how you play: the control zones on a phone or tablet; on a computer, or once a key or
+gamepad button is pressed, a card listing the keys (or buttons), shown as a cart starts and while
+paused, and in Settings › Controls. Touching the screen brings the zones back; **Hints for** in
+Settings fixes it to Touch, Keys or Pad. A gamepad's Start button resumes a paused game.
+
 ## How it works
 
 - **Carts** (`src/p8/cart.js`): `.p8` text sections, and `.p8.png` pictures (the cart in the low
