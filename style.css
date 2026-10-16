@@ -472,6 +472,72 @@ label.switch input:focus-visible + i { outline: 2px solid var(--accent); outline
   #loading .cart-chip { animation: none; transform: translateY(4px); }
 }
 
+/* ---------------------------------------------------------------- update screen (src/sw-update.js) */
+
+/* While a new version installs: a cartridge filling up as its files are saved, and a bar. */
+#updating {
+  position: fixed; inset: 0; z-index: 14;
+  display: grid; place-items: center;
+  background: rgba(11, 13, 20, 0.82);
+  backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+#updating.show { opacity: 1; }
+#updating .card {
+  width: min(280px, calc(100vw - 32px));
+  padding: 22px 24px 20px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+#updating .update-cart {
+  position: relative;
+  width: 44px; height: 52px;
+  margin: 0 auto 14px;
+  border: 2px solid var(--accent);
+  border-radius: 6px 6px 3px 3px;
+  overflow: hidden;
+}
+/* The cartridge's label window. */
+#updating .update-label {
+  position: absolute; left: 7px; right: 7px; top: 7px; height: 16px;
+  border: 1px solid var(--accent); border-radius: 2px;
+  opacity: 0.6;
+}
+#updating .update-fill {
+  position: absolute; inset: 0;
+  background: var(--accent);
+  opacity: 0.85;
+  transform: scaleY(0.04); transform-origin: bottom;
+  transition: transform 0.25s ease;
+}
+#updating .label {
+  font: 700 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent);
+}
+#updating .name { margin-top: 6px; font-weight: 600; }
+#updating .detail { margin-top: 6px; font-size: 12px; color: var(--dim); }
+#updating .bar {
+  height: 4px; margin-top: 14px;
+  background: var(--line); border-radius: 2px; overflow: hidden;
+}
+#updating .bar > div {
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.25s ease;
+}
+/* Waiting for the first progress report: the fill breathes. */
+#updating:not(.done) .update-fill { animation: update-pulse 1.4s ease-in-out infinite; }
+@keyframes update-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  #updating:not(.done) .update-fill { animation: none; }
+}
+
 #toast {
   position: fixed; left: 50%; bottom: 24px; z-index: 11;
   transform: translate(-50%, 12px);
