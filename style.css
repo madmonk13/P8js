@@ -270,6 +270,8 @@ button.pill.held { background: var(--accent); color: var(--accent-ink); }
   background: linear-gradient(var(--bg) 80%, transparent);
 }
 .sheet h1 { margin: 0; font: 800 20px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.04em; }
+.sheet-head .install { display: inline-flex; align-items: center; gap: 6px; margin: 0 10px 0 auto; padding: 6px 12px; font-weight: 600; }
+.sheet-head .install[hidden] { display: none; }
 .sheet h1 span { color: var(--accent-text); }
 .sheet section { padding: 14px 0; border-top: 1px solid var(--line); }
 .sheet h2 {

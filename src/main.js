@@ -8,6 +8,7 @@ import { store, readRomFile, withLoading, toast } from './shared.js';
 import { library, renderLibrary } from './library.js';
 import { TouchControls } from './touch.js';
 import { registerServiceWorker } from './sw-update.js';
+import { setupInstall } from './install.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -529,3 +530,4 @@ window.audio = audio;
 // version shows an update screen while it installs. Browsers only allow it on
 // https or localhost.
 registerServiceWorker('P8js');
+setupInstall($('installBtn'), (msg) => toast(msg, { info: true }));

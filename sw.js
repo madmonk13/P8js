@@ -4,7 +4,7 @@
 // the current app) and falls back to the cache when offline. ROM sets under
 // roms/ aren't cached here: games kept on the device live in IndexedDB.
 
-const CACHE = 'p8js-2392a0c84666';
+const CACHE = 'p8js-9e05f263e343';
 const FILES = [
   "./",
   "favicon-32.png",
@@ -18,6 +18,7 @@ const FILES = [
   "src/audio-worklet.js",
   "src/input-mode.js",
   "src/input.js",
+  "src/install.js",
   "src/library.js",
   "src/main.js",
   "src/p8/audio.js",
